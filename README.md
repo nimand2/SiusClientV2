@@ -6,12 +6,14 @@ Python-Desktop-Anwendung für LGS Wangen. Die dunkle Oberfläche mit violetten B
 
 **`Starten.cmd` doppelklicken.** Alternativ `dist/SiusClientV2.exe` starten. Die EXE enthält Python und PyQt6; auf dem Zielrechner ist keine Python-Installation nötig.
 
+Falls die Windows-Anwendungssteuerung die unsignierte EXE blockiert, kann die eingerichtete Python-Anwendung mit **`Starten-Python.cmd`** gestartet werden. Dabei wird die vorhandene `.venv` benötigt; es wird keine Windows-Schutzfunktion verändert. Beim abschliessenden Live-Test am 11.10.2026 wurde die neu gebaute EXE durch diese Richtlinie blockiert, während die Anwendung und der Serverzugriff über die Python-Umgebung geprüft wurden.
+
 1. Server-Adresse, Benutzername und Passwort eingeben und **Verbinden** wählen.
 2. SIUS-Schussdatei und Speicherort für `Shooters.csv` wählen. Das müssen verschiedene Dateien sein. **Schiesstag prüfen**: Er wird aus dem Änderungsdatum der Datei vorgeschlagen und kann korrigiert werden. Der Dateiname ist frei wählbar.
 3. Den richtigen Anlass wählen und **Live starten** drücken. Eine vorhandene Schützenliste wird nach Bestätigung ersetzt.
 4. Zum Unterbrechen **Pausieren** verwenden. Zum Wiederabgleich pausieren, **Alles erneut abgleichen**, dann **Live starten** wählen.
 
-Server-Adresse, Benutzername, Pfade, Schiesstag und letzter Anlass werden gespeichert. Passwort und API-Token werden nicht gespeichert. Nach einem Programmneustart deshalb erneut anmelden und Live starten.
+Server-Adresse, Benutzername, Schiesstag und letzter Anlass werden gespeichert. Die beiden Dateipfade bleiben beim Programmstart leer und müssen neu gewählt werden. Passwort und API-Token werden nicht gespeichert. Nach einem Programmneustart deshalb erneut anmelden, Dateien wählen und Live starten.
 
 ## Woran erkenne ich, dass es läuft?
 
@@ -82,4 +84,8 @@ Automatisierte Tests decken Neustart, verlorene Antworten, Wiederabgleich, Reihe
 
 Die bereitgestellte echte Datei **`20251012.csv`** wurde lokal gegen einen simulierten Server getestet: **1'480 Zeilen, 1'480 bestätigte Datensätze, 0 ungültige Zeilen, 0 offene Datensätze, 0 zusätzliche Duplikate nach Neustart und Wiederabgleich**. Verlorene Antwort nach Speicherung und die chronologische Reihenfolge wurden mitgeprüft. Der Zeitbereich ist korrekt auf **12.10.2025, 09:15:32.190 bis 15:46:56.370** bezogen. Die Originaldatei wurde nur gelesen.
 
-Ein Test mit der laufenden SIUS-Anlage und dem produktiven Server wurde noch nicht durchgeführt. Die tatsächliche Serverversion und der eindeutige Datenbankindex müssen dem oben beschriebenen Stand entsprechen. Falls V1 historische Daten bereits mit einem falschen Importdatum auf dem Server angelegt hat, korrigiert der Wiederabgleich solche alten Datensätze nicht automatisch; diese müssen auf dem Server geprüft werden.
+Am 11.10.2026 wurde zusätzlich der echte Server `winklarweb.emitprod.com` mit Anlass 9 «Chilbischiessen 2026» getestet. Aus `D:/LGS Wangen/fin/20261011.csv` wurden nach Benutzerfreigabe 1'234 Datensätze übertragen; 15 Zeilen mit Startnummer 16 wurden für diesen Test ausgeschlossen. Der Server bestätigte 826 neu eingefügte und 408 bereits vorhandene Datensätze. Nach erneuter Anmeldung und neu aufgebauter Übertragung wurden alle 1'234 erneut bestätigt und **0 weitere Datensätze eingefügt**. Die 61 Schützen wurden nach `C:/Users/troge/Downloads/Shooters.csv` exportiert; die vorherige Datei wurde im Testordner gesichert. Die Original-Schussdatei blieb unverändert; die Ausnahme für Nummer 16 gilt nur für diesen Test und ist kein allgemeiner Importfilter.
+
+Der vorgeschaltete Zugriffsschutz lehnte Pythons Standardkennung ab. API-Anfragen identifizieren sich deshalb jetzt ausdrücklich mit `SiusClientV2/2.0 (Windows)`. HTTP 403 wird als Zugriffsproblem und HTTP 401 als Anmeldeproblem angezeigt. Die aktualisierte EXE enthält diese Korrektur; 32 Python-Tests bestehen.
+
+Die Tests verwenden gespeicherte SIUS-Dateien; ein länger laufender Betrieb an der aktiven Anlage wurde noch nicht durchgeführt. Falls V1 historische Daten bereits mit einem falschen Importdatum auf dem Server angelegt hat, korrigiert der Wiederabgleich solche alten Datensätze nicht automatisch; diese müssen auf dem Server geprüft werden.

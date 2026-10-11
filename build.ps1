@@ -10,7 +10,7 @@ try {
     # OneDrive can retain read-only handles on old analysis folders.
     # Use a fresh work directory; no recursive cleanup is necessary.
     $buildWork = Join-Path $PSScriptRoot ('build/run-' + [guid]::NewGuid().ToString('N'))
-    & .\.venv\Scripts\python.exe -m PyInstaller --noconfirm --workpath $buildWork --onefile --windowed --name SiusClientV2 main.py
+    & .\.venv\Scripts\python.exe -m PyInstaller --noconfirm --workpath $buildWork packaging/client.spec
     if ($LASTEXITCODE -ne 0) { throw 'EXE konnte nicht erstellt werden.' }
     Write-Host 'Bereit: dist\SiusClientV2.exe'
 }

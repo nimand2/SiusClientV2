@@ -61,7 +61,7 @@ class Api:
         self.token = ""
 
     def request(self, path: str, data=None):
-        headers = {"Accept": "application/json"}
+        headers = {"Accept": "application/json", "User-Agent": "SiusClientV2/2.0 (Windows)"}
         if self.token:
             headers["Authorization"] = "Bearer " + self.token
         body = None
@@ -73,8 +73,10 @@ class Api:
             with build_opener(NoRedirect).open(request, timeout=30) as response:
                 return json.loads(response.read().decode("utf-8-sig"))
         except HTTPError as exc:
-            if exc.code in (401, 403):
+            if exc.code == 401:
                 raise ClientError("Anmeldung abgelehnt oder abgelaufen. Bitte erneut verbinden.") from exc
+            if exc.code == 403:
+                raise ClientError("Zugriff verweigert (HTTP 403). Bitte Benutzerberechtigung und Zugriffsschutz des Servers prüfen.") from exc
             raise ClientError(f"Der Server meldet HTTP {exc.code}. Bitte Verbindung und Server prüfen.") from exc
         except (URLError, TimeoutError, OSError) as exc:
             raise ClientError("Server nicht erreichbar. Bitte Netzwerk und Server-Adresse prüfen.") from exc

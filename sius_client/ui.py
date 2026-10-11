@@ -292,7 +292,7 @@ class Window(QMainWindow):
             self.message("Gespeicherte Einstellungen konnten nicht geladen werden.")
 
     def settings_fields(self):
-        return {"server": self.server, "username": self.username, "source": self.source, "target": self.target}
+        return {"server": self.server, "username": self.username}
 
     def save_settings(self):
         if not self.persist:
