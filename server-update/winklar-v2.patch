@@ -1,0 +1,152 @@
+diff --git a/app/Services/Schussreihenfolge.php b/app/Services/Schussreihenfolge.php
+--- /dev/null
++++ b/app/Services/Schussreihenfolge.php
+@@ -0,0 +1,28 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Services;
++
++final class Schussreihenfolge
++{
++    /**
++     * Empfangs-ID ist nur der letzte Tie-Breaker. Nachgelieferte SIUS-Schuesse
++     * muessen an ihrer zeitlichen Position in die Serie eingeordnet werden.
++     * Match/Stich-Zaehler koennen zwischen Serien wieder bei 1 beginnen.
++     */
++    public static function compare(array $left, array $right): int
++    {
++        return self::key($left) <=> self::key($right);
++    }
++
++    private static function key(array $shot): array
++    {
++        return [
++            (string) ($shot['schuss_zeit'] ?? $shot['created_at'] ?? ''),
++            (int) ($shot['zeit_seit_jahresanfang'] ?? 0),
++            (int) ($shot['log_event'] ?? 0),
++            (int) ($shot['id'] ?? 0),
++        ];
++    }
++}
+diff --git a/app/Services/AbrechnungsService.php b/app/Services/AbrechnungsService.php
+--- a/app/Services/AbrechnungsService.php
++++ b/app/Services/AbrechnungsService.php
+@@ -88,9 +88,7 @@
+      */
+     private function buildAuswertung(array $stiche, array $schuesse): array
+     {
+-        usort($schuesse, static function (array $left, array $right): int {
+-            return (int) $left['id'] <=> (int) $right['id'];
+-        });
++        usort($schuesse, [Schussreihenfolge::class, 'compare']);
+ 
+         $schuesseByExterneNummer = [];
+         foreach ($schuesse as $schuss) {
+diff --git a/app/Services/RanglistenService.php b/app/Services/RanglistenService.php
+--- a/app/Services/RanglistenService.php
++++ b/app/Services/RanglistenService.php
+@@ -192,11 +192,8 @@
+      */
+     private function resultateForStich(array $stich, array $schuesse): array
+     {
+-        // Use the same stable import order as the standblatt calculation.
+-        // SIUS Match/Stich counters can restart between series.
+-        usort($schuesse, static fn (array $left, array $right): int =>
+-            (int) ($left['id'] ?? 0) <=> (int) ($right['id'] ?? 0)
+-        );
++        // Identische zeitliche Reihenfolge in Rangliste und Standblatt.
++        usort($schuesse, [Schussreihenfolge::class, 'compare']);
+         $anzahlSchuss = max(1, (int) ($stich['anzahl_schuss'] ?? 0));
+         $resultate = [];
+ 
+diff --git a/app/Controllers/ClientApiController.php b/app/Controllers/ClientApiController.php
+--- a/app/Controllers/ClientApiController.php
++++ b/app/Controllers/ClientApiController.php
+@@ -133,6 +133,10 @@
+         JsonResponse::send([
+             'success' => true,
+             'imported' => $created,
++            // createMany commits all normalised rows in one transaction.
++            // Existing import hashes count as accepted, not newly imported.
++            'accepted' => count(array_filter($shots, 'is_array')),
++            'duplicates' => count(array_filter($shots, 'is_array')) - $created,
+         ], 201);
+     }
+ 
+diff --git a/tests/serienwertung.php b/tests/serienwertung.php
+--- a/tests/serienwertung.php
++++ b/tests/serienwertung.php
+@@ -22,7 +22,7 @@
+             $series=[[9,10,10,9,10],[10,10,9,9,9],[10,10,10,9,10],[10,9,9,10,9],[10,9,10,10,8]];
+             foreach ($series as $serie=>$values) {
+                 foreach ($values as $index=>$value) {
+-                    $rows[]=['id'=>100+$serie*5+$index,'start_nr'=>24,'primaerwertung'=>$value,'externe_nummer'=>901,'match_index'=>$index+1,'stich_index'=>1];
++                    $rows[]=['id'=>1000-($serie*5+$index),'schuss_zeit'=>sprintf('2026-10-11 10:00:%02d',$serie*5+$index),'start_nr'=>24,'primaerwertung'=>$value,'externe_nummer'=>901,'match_index'=>$index+1,'stich_index'=>1];
+                 }
+             }
+             $rows[]=['id'=>999,'start_nr'=>24,'primaerwertung'=>10,'externe_nummer'=>901,'ins_del'=>1];
+@@ -38,6 +38,7 @@
+     }
+ }
+ namespace {
++    require dirname(__DIR__).'/app/Services/Schussreihenfolge.php';
+     require dirname(__DIR__).'/app/Services/RanglistenService.php';
+     require dirname(__DIR__).'/app/Services/AbrechnungsService.php';
+     $standblatt=new \App\Models\Standblatt();
+diff --git a/tests/schussreihenfolge.php b/tests/schussreihenfolge.php
+--- /dev/null
++++ b/tests/schussreihenfolge.php
+@@ -0,0 +1,29 @@
++<?php
++
++declare(strict_types=1);
++
++require dirname(__DIR__) . '/app/Services/Schussreihenfolge.php';
++
++$shots = [
++    ['id' => 1, 'schuss_zeit' => '2026-10-11 10:00:03', 'log_event' => '100'],
++    ['id' => 90, 'schuss_zeit' => '2026-10-11 10:00:01', 'log_event' => '98'],
++    ['id' => 92, 'schuss_zeit' => '2026-10-11 10:00:02', 'log_event' => '99'],
++];
++usort($shots, [App\Services\Schussreihenfolge::class, 'compare']);
++if (array_column($shots, 'id') !== [90, 92, 1]) {
++    throw new RuntimeException('Nachgelieferte Schuesse sind nicht chronologisch.');
++}
++$sameTime = [
++    ['id' => 1, 'schuss_zeit' => '2026-10-11 10:00:01', 'log_event' => '10'],
++    ['id' => 2, 'schuss_zeit' => '2026-10-11 10:00:01', 'log_event' => '2'],
++];
++usort($sameTime, [App\Services\Schussreihenfolge::class, 'compare']);
++if (array_column($sameTime, 'log_event') !== ['2', '10']) {
++    throw new RuntimeException('LogEvent muss numerisch sortiert werden.');
++}
++$manual = [['id' => 5], ['id' => 2]];
++usort($manual, [App\Services\Schussreihenfolge::class, 'compare']);
++if (array_column($manual, 'id') !== [2, 5]) {
++    throw new RuntimeException('Fallback fuer alte/manuelle Datensaetze fehlt.');
++}
++echo "Schussreihenfolge: Nachlieferung, numerische Ereignisse und Fallback bestanden.\n";
+diff --git a/tests/final.php b/tests/final.php
+--- a/tests/final.php
++++ b/tests/final.php
+@@ -26,6 +26,7 @@
+     }
+ }
+ namespace {
++    require dirname(__DIR__).'/app/Services/Schussreihenfolge.php';
+     require dirname(__DIR__).'/app/Services/RanglistenService.php';
+     require dirname(__DIR__).'/app/Services/FinalService.php';
+     require dirname(__DIR__).'/app/Core/Url.php';
+diff --git a/tests/gabenabrechnung.php b/tests/gabenabrechnung.php
+--- a/tests/gabenabrechnung.php
++++ b/tests/gabenabrechnung.php
+@@ -33,6 +33,7 @@
+     }
+ }
+ namespace {
++    require dirname(__DIR__).'/app/Services/Schussreihenfolge.php';
+     require dirname(__DIR__).'/app/Services/AbrechnungsService.php';
+     $service = new \App\Services\AbrechnungsService(new \App\Models\Standblatt(), new \App\Models\Schussdaten(), new \App\Models\Gaben());
+     $check = static function(bool $ok, string $message): void { if (!$ok) throw new \RuntimeException($message); };
